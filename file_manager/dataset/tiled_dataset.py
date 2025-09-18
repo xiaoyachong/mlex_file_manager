@@ -2,6 +2,7 @@ import concurrent.futures
 import os
 from functools import partial
 
+import httpx
 import numpy as np
 from tiled.client import from_uri
 from tiled.client.array import ArrayClient
@@ -71,12 +72,20 @@ class TiledDataset(Dataset):
         else:
             # Check for environment variables for cache configuration
             cache_path = os.environ.get("TILED_CACHE_PATH")
-            
+
+            # Increase timeout from default 30 seconds to 180 seconds
+            timeout = httpx.Timeout(180.0)
+
             if cache_path:
                 # Get capacity and max item size from environment or use defaults
                 capacity = int(os.environ.get("TILED_CACHE_CAPACITY", 500_000_000))
-                max_item_size = int(os.environ.get("TILED_CACHE_MAX_ITEM_SIZE", 500_000))
-                
+                max_item_size = int(
+                    os.environ.get("TILED_CACHE_MAX_ITEM_SIZE", 500_000)
+                )
+
+                # Create directory for cache if it doesn't exist
+                os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+
                 # Create custom cache
                 cache = Cache(
                     capacity=capacity,
@@ -84,13 +93,15 @@ class TiledDataset(Dataset):
                     filepath=cache_path,
                     readonly=False,
                 )
-                
-                # Create client with custom cache
-                client = from_uri(tiled_uri, api_key=api_key, cache=cache)
+
+                # Create client with custom cache and increased timeout
+                client = from_uri(
+                    tiled_uri, api_key=api_key, cache=cache, timeout=timeout
+                )
             else:
-                # Create client with default cache
-                client = from_uri(tiled_uri, api_key=api_key)
-                
+                # Create client with default cache but increased timeout
+                client = from_uri(tiled_uri, api_key=api_key, timeout=timeout)
+
             return client
 
     def read_data(
