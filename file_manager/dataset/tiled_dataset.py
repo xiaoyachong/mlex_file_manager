@@ -73,9 +73,6 @@ class TiledDataset(Dataset):
             # Check for environment variables for cache configuration
             cache_path = os.environ.get("TILED_CACHE_PATH")
 
-            # Increase timeout from default 30 seconds to 180 seconds
-            timeout = httpx.Timeout(180.0)
-
             if cache_path:
                 # Get capacity and max item size from environment or use defaults
                 capacity = int(os.environ.get("TILED_CACHE_CAPACITY", 500_000_000))
@@ -95,12 +92,10 @@ class TiledDataset(Dataset):
                 )
 
                 # Create client with custom cache and increased timeout
-                client = from_uri(
-                    tiled_uri, api_key=api_key, cache=cache, timeout=timeout
-                )
+                client = from_uri(tiled_uri, api_key=api_key, cache=cache)
             else:
                 # Create client with default cache but increased timeout
-                client = from_uri(tiled_uri, api_key=api_key, timeout=timeout)
+                client = from_uri(tiled_uri, api_key=api_key)
 
             return client
 
@@ -145,6 +140,7 @@ class TiledDataset(Dataset):
             return tiled_uris
 
         tiled_data = tiled_client[self.uri]
+        tiled_data = tiled_data.read(timeout=60.0)
         if downsample:
             if len(tiled_data.shape) == 4:
                 block_data = tiled_data[indexes, :, ::10, ::10]
