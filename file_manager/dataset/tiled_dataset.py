@@ -4,7 +4,7 @@ from functools import partial
 
 import httpx
 import numpy as np
-from tiled.client import from_uri
+from tiled.client import from_uri, show_logs
 from tiled.client.array import ArrayClient
 from tiled.client.cache import Cache
 
@@ -18,7 +18,7 @@ if STATIC_TILED_URI:
 else:
     STATIC_TILED_CLIENT = None
 
-
+show_logs()
 class TiledDataset(Dataset):
     def __init__(
         self,
@@ -80,9 +80,6 @@ class TiledDataset(Dataset):
                     os.environ.get("TILED_CACHE_MAX_ITEM_SIZE", 500_000)
                 )
 
-                # Create directory for cache if it doesn't exist
-                os.makedirs(os.path.dirname(cache_path), exist_ok=True)
-
                 # Create custom cache
                 cache = Cache(
                     capacity=capacity,
@@ -140,7 +137,6 @@ class TiledDataset(Dataset):
             return tiled_uris
 
         tiled_data = tiled_client[self.uri]
-        tiled_data = tiled_data.read()
         if downsample:
             if len(tiled_data.shape) == 4:
                 block_data = tiled_data[indexes, :, ::10, ::10]
