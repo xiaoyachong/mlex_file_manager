@@ -140,7 +140,7 @@ class TiledDataset(Dataset):
             return tiled_uris
 
         tiled_data = tiled_client[self.uri]
-        tiled_data = tiled_data.read(timeout=60.0)
+        tiled_data = tiled_data.read()
         if downsample:
             if len(tiled_data.shape) == 4:
                 block_data = tiled_data[indexes, :, ::10, ::10]
