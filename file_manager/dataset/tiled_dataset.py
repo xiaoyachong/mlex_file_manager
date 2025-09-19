@@ -25,7 +25,7 @@ def recreate_client_with_new_pool(old_client, max_connections=100, pool_timeout=
         headers=old_client.headers,
         cookies=old_client.cookies,
         limits=httpx.Limits(max_connections=max_connections),
-        timeout=httpx.Timeout(pool=pool_timeout),
+        timeout=httpx.Timeout(pool=pool_timeout,read=10.0, write=10.0, connect=10.0),
     )
     return new_client
 class TiledDataset(Dataset):
