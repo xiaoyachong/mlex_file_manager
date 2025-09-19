@@ -18,7 +18,16 @@ if STATIC_TILED_URI:
 else:
     STATIC_TILED_CLIENT = None
 
-show_logs()
+
+def recreate_client_with_new_pool(old_client, max_connections=100, pool_timeout=10.0):
+    new_client = httpx.Client(
+        base_url=old_client.base_url,
+        headers=old_client.headers,
+        cookies=old_client.cookies,
+        limits=httpx.Limits(max_connections=max_connections),
+        timeout=httpx.Timeout(pool=pool_timeout),
+    )
+    return new_client
 class TiledDataset(Dataset):
     def __init__(
         self,
@@ -52,6 +61,8 @@ class TiledDataset(Dataset):
             New instance
         """
         return cls(dataset_dict["uri"], dataset_dict["cumulative_data_count"])
+    
+
 
     @staticmethod
     def get_tiled_client(
@@ -90,11 +101,15 @@ class TiledDataset(Dataset):
 
                 # Create client with custom cache and increased timeout
                 client = from_uri(tiled_uri, api_key=api_key, cache=cache)
+                recreate_client_with_new_pool(client.context.http_client)
+
             else:
                 # Create client with default cache but increased timeout
                 client = from_uri(tiled_uri, api_key=api_key)
 
             return client
+        
+
 
     def read_data(
         self,
