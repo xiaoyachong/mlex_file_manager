@@ -99,7 +99,7 @@ class TiledDataset(Dataset):
             
         # Get configuration from environment variables
         max_connections = 300
-        pool_timeout = 10.0
+        pool_timeout = 60.0
         
         # Create custom transport with improved connection pool
         transport = httpx.HTTPTransport(
@@ -109,9 +109,9 @@ class TiledDataset(Dataset):
         # Create custom timeout
         timeout = httpx.Timeout(
             pool=pool_timeout,
-            connect=10.0,
-            read=10.0,
-            write=10.0
+            connect=pool_timeout,
+            read=pool_timeout,
+            write=pool_timeout
         )
         
         # Check for cache configuration
