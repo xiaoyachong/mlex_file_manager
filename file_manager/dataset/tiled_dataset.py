@@ -101,7 +101,7 @@ class TiledDataset(Dataset):
 
                 # Create client with custom cache and increased timeout
                 client = from_uri(tiled_uri, api_key=api_key, cache=cache)
-                client = recreate_client_with_new_pool(client.context.http_client)
+                client.context.http_client = recreate_client_with_new_pool(client.context.http_client)
 
             else:
                 # Create client with default cache but increased timeout
