@@ -98,7 +98,7 @@ class TiledDataset(Dataset):
             return static_tiled_client
             
         # Get configuration from environment variables
-        max_connections = 100
+        max_connections = 300
         pool_timeout = 10.0
         
         # Create custom transport with improved connection pool
