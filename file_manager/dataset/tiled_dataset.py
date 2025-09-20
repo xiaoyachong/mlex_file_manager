@@ -91,45 +91,66 @@ class TiledDataset(Dataset):
         tiled_uri, api_key=None, static_tiled_client=STATIC_TILED_CLIENT
     ):
         """
-        Get the tiled client
-        Args:
-            tiled_uri:              Tiled URI
-            api_key:                Tiled API key
-            static_tiled_client:    Static tiled client
-        Returns:
-            Tiled client
+        Get the tiled client with improved connection pool settings
         """
-        # Checks if a static tiled client has been set, otherwise creates a new one
+        # Return static client if available
         if static_tiled_client:
             return static_tiled_client
-        else:
-            # Check for environment variables for cache configuration
-            cache_path = os.environ.get("TILED_CACHE_PATH")
-
-            if cache_path:
-                # Get capacity and max item size from environment or use defaults
-                capacity = int(os.environ.get("TILED_CACHE_CAPACITY", 500_000_000))
-                max_item_size = int(
-                    os.environ.get("TILED_CACHE_MAX_ITEM_SIZE", 500_000)
+            
+        # Get configuration from environment variables
+        max_connections = 100
+        pool_timeout = 10.0
+        
+        # Create custom transport with improved connection pool
+        transport = httpx.HTTPTransport(
+            limits=httpx.Limits(max_connections=max_connections)
+        )
+        
+        # Create custom timeout
+        timeout = httpx.Timeout(
+            pool=pool_timeout,
+            connect=10.0,
+            read=10.0,
+            write=10.0
+        )
+        
+        # Check for cache configuration
+        cache_path = os.environ.get("TILED_CACHE_PATH")
+        if cache_path:
+            # Create custom cache
+            cache = Cache(
+                capacity=int(os.environ.get("TILED_CACHE_CAPACITY", 500_000_000)),
+                max_item_size=int(os.environ.get("TILED_CACHE_MAX_ITEM_SIZE", 500_000)),
+                filepath=cache_path,
+                readonly=False,
+            )
+            
+            # Create client with custom cache, transport, and timeout
+            try:
+                client = from_uri(
+                    tiled_uri, 
+                    api_key=api_key, 
+                    cache=cache,
+                    transport=transport,
+                    timeout=timeout
                 )
-
-                # Create custom cache
-                cache = Cache(
-                    capacity=capacity,
-                    max_item_size=max_item_size,
-                    filepath=cache_path,
-                    readonly=False,
-                )
-
-                # Create client with custom cache and increased timeout
+            except TypeError:
+                # If transport parameter isn't accepted, try without it
                 client = from_uri(tiled_uri, api_key=api_key, cache=cache)
-                client.context.http_client = recreate_client_with_new_pool(client.context.http_client)
-
-            else:
-                # Create client with default cache but increased timeout
+        else:
+            # Create client with default cache but custom transport and timeout
+            try:
+                client = from_uri(
+                    tiled_uri, 
+                    api_key=api_key,
+                    transport=transport,
+                    timeout=timeout
+                )
+            except TypeError:
+                # If transport parameter isn't accepted, try without it
                 client = from_uri(tiled_uri, api_key=api_key)
-
-            return client
+        
+        return client
         
 
 
