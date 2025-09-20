@@ -219,7 +219,7 @@ class TiledDataset(Dataset):
         if block_data.shape[1] == 1:
             block_data = np.squeeze(block_data, axis=1)
 
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             data = list(
                 executor.map(
                     self._read_data_point,
@@ -311,7 +311,7 @@ class TiledDataset(Dataset):
         """
         get_node_size_with_client = partial(cls._get_node_size, tiled_client)
 
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             sizes = list(executor.map(get_node_size_with_client, nodes))
 
         cumulative_dataset_size = [sum(sizes[: i + 1]) for i in range(len(sizes))]
@@ -359,7 +359,7 @@ class TiledDataset(Dataset):
         # Browse the tiled URI
         tiled_uris = []
         nodes = list(tiled_client)
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             future_to_node = {
                 executor.submit(
                     cls._check_node, tiled_client, sub_uri_template, node

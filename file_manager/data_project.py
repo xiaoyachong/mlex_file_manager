@@ -137,7 +137,7 @@ class DataProject:
             for dataset_index, image_indices in dataset_indices.items()
         ]
 
-        with ThreadPoolExecutor() as executor:
+        with ThreadPoolExecutor(max_workers=5) as executor:
             try:
                 if just_uri:
                     uris = list(
@@ -293,7 +293,7 @@ class DataProject:
             subset = self._list_indices[start_index:end_index]
             if len(subset) != 0:
                 tiled_uris = tiled_uris[start_index:end_index]
-                with ThreadPoolExecutor() as executor:
+                with ThreadPoolExecutor(max_workers=5) as executor:
                     check_func = partial(
                         self._check_file_and_remove_index,
                         subset=subset,
@@ -335,7 +335,7 @@ class DataProject:
             data_contents, data_uris = self.read_datasets(
                 filtered_indices, export="raw", resize=False, log=False
             )
-            with ThreadPoolExecutor() as executor:
+            with ThreadPoolExecutor(max_workers=5) as executor:
                 list(
                     executor.map(
                         partial(self._save_data_content, root_dir=root_dir),
