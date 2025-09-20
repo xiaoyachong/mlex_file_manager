@@ -29,25 +29,12 @@ else:
 #     )
 #     return new_client
 def recreate_client_with_new_pool(old_client, max_connections=100, pool_timeout=10.0):
-    """
-    Create a new httpx client with larger connection pool while preserving other settings
-    """
-    # Create a new client with all the same settings, just modifying the limits and timeout
     new_client = httpx.Client(
         base_url=old_client.base_url,
         headers=old_client.headers,
         cookies=old_client.cookies,
-        auth=old_client.auth,
-        follow_redirects=old_client.follow_redirects,
-        event_hooks=old_client.event_hooks,
         limits=httpx.Limits(max_connections=max_connections),
-        timeout=httpx.Timeout(pool=pool_timeout, read=10.0, write=10.0, connect=10.0),
-        # Preserve any other settings that might be important
-        http1=old_client._http1,
-        http2=old_client._http2,
-        proxies=old_client.proxies,
-        verify=old_client.verify,
-        cert=old_client.cert,
+        timeout=httpx.Timeout(pool=pool_timeout, read=10.0, write=10.0, connect=10.0)
     )
     return new_client
 class TiledDataset(Dataset):
@@ -97,9 +84,9 @@ class TiledDataset(Dataset):
         if static_tiled_client:
             return static_tiled_client
             
-        # Get configuration from environment variables
-        max_connections = 300
-        pool_timeout = 60.0
+        # Get configuration from environment variables or use strong defaults
+        max_connections = int(os.environ.get("TILED_MAX_CONNECTIONS", "300"))
+        pool_timeout = float(os.environ.get("TILED_POOL_TIMEOUT", "60.0"))
         
         # Create custom transport with improved connection pool
         transport = httpx.HTTPTransport(
@@ -116,17 +103,16 @@ class TiledDataset(Dataset):
         
         # Check for cache configuration
         cache_path = os.environ.get("TILED_CACHE_PATH")
-        if cache_path:
-            # Create custom cache
-            cache = Cache(
-                capacity=int(os.environ.get("TILED_CACHE_CAPACITY", 500_000_000)),
-                max_item_size=int(os.environ.get("TILED_CACHE_MAX_ITEM_SIZE", 500_000)),
-                filepath=cache_path,
-                readonly=False,
-            )
-            
-            # Create client with custom cache, transport, and timeout
-            try:
+        
+        try:
+            # First try with transport and timeout parameters
+            if cache_path:
+                cache = Cache(
+                    capacity=int(os.environ.get("TILED_CACHE_CAPACITY", 500_000_000)),
+                    max_item_size=int(os.environ.get("TILED_CACHE_MAX_ITEM_SIZE", 500_000)),
+                    filepath=cache_path,
+                    readonly=False,
+                )
                 client = from_uri(
                     tiled_uri, 
                     api_key=api_key, 
@@ -134,21 +120,46 @@ class TiledDataset(Dataset):
                     transport=transport,
                     timeout=timeout
                 )
-            except TypeError:
-                # If transport parameter isn't accepted, try without it
-                client = from_uri(tiled_uri, api_key=api_key, cache=cache)
-        else:
-            # Create client with default cache but custom transport and timeout
-            try:
+            else:
                 client = from_uri(
                     tiled_uri, 
                     api_key=api_key,
                     transport=transport,
                     timeout=timeout
                 )
-            except TypeError:
-                # If transport parameter isn't accepted, try without it
+        except TypeError as e:
+            # If that fails, try with just the client creation
+            if cache_path:
+                cache = Cache(
+                    capacity=int(os.environ.get("TILED_CACHE_CAPACITY", 500_000_000)),
+                    max_item_size=int(os.environ.get("TILED_CACHE_MAX_ITEM_SIZE", 500_000)),
+                    filepath=cache_path,
+                    readonly=False,
+                )
+                client = from_uri(tiled_uri, api_key=api_key, cache=cache)
+            else:
                 client = from_uri(tiled_uri, api_key=api_key)
+            
+            # Then try to modify the HTTP client after creation
+            try:
+                if hasattr(client, 'context') and hasattr(client.context, 'http_client'):
+                    # Directly modify the client's transport if possible
+                    if hasattr(client.context.http_client, '_transport'):
+                        # Create a new transport
+                        new_transport = httpx.HTTPTransport(
+                            limits=httpx.Limits(max_connections=max_connections)
+                        )
+                        # Replace it in the client
+                        client.context.http_client._transport = new_transport
+                        
+                    # Set the timeout
+                    if hasattr(client.context.http_client, 'timeout'):
+                        client.context.http_client.timeout = timeout
+            except Exception as e2:
+                import logging
+                logging.getLogger(__name__).warning(
+                    f"Could not modify HTTP client after creation: {e2}"
+                )
         
         return client
         
