@@ -83,85 +83,82 @@ class TiledDataset(Dataset):
         # Return static client if available
         if static_tiled_client:
             return static_tiled_client
-            
-        # Get configuration from environment variables or use strong defaults
-        max_connections = int(os.environ.get("TILED_MAX_CONNECTIONS", "300"))
-        pool_timeout = float(os.environ.get("TILED_POOL_TIMEOUT", "60.0"))
         
-        # Create custom transport with improved connection pool
-        transport = httpx.HTTPTransport(
-            limits=httpx.Limits(max_connections=max_connections)
-        )
-        
-        # Create custom timeout
-        timeout = httpx.Timeout(
-            pool=pool_timeout,
-            connect=pool_timeout,
-            read=pool_timeout,
-            write=pool_timeout
-        )
-        
-        # Check for cache configuration
+        # Prepare cache configuration if specified
         cache_path = os.environ.get("TILED_CACHE_PATH")
+        cache = None
         
+        if cache_path:
+            # Create custom cache
+            cache = Cache(
+                capacity=int(os.environ.get("TILED_CACHE_CAPACITY", 500_000_000)),
+                max_item_size=int(os.environ.get("TILED_CACHE_MAX_ITEM_SIZE", 500_000)),
+                filepath=cache_path,
+                readonly=False,
+            )
+        
+        # First create a standard client with cache but no other modifications
         try:
-            # First try with transport and timeout parameters
-            if cache_path:
-                cache = Cache(
-                    capacity=int(os.environ.get("TILED_CACHE_CAPACITY", 500_000_000)),
-                    max_item_size=int(os.environ.get("TILED_CACHE_MAX_ITEM_SIZE", 500_000)),
-                    filepath=cache_path,
-                    readonly=False,
-                )
-                client = from_uri(
-                    tiled_uri, 
-                    api_key=api_key, 
-                    cache=cache,
-                    transport=transport,
-                    timeout=timeout
-                )
-            else:
-                client = from_uri(
-                    tiled_uri, 
-                    api_key=api_key,
-                    transport=transport,
-                    timeout=timeout
-                )
-        except TypeError as e:
-            # If that fails, try with just the client creation
-            if cache_path:
-                cache = Cache(
-                    capacity=int(os.environ.get("TILED_CACHE_CAPACITY", 500_000_000)),
-                    max_item_size=int(os.environ.get("TILED_CACHE_MAX_ITEM_SIZE", 500_000)),
-                    filepath=cache_path,
-                    readonly=False,
-                )
-                client = from_uri(tiled_uri, api_key=api_key, cache=cache)
-            else:
-                client = from_uri(tiled_uri, api_key=api_key)
+            # Create the basic Tiled client with cache if specified
+            client = from_uri(tiled_uri, api_key=api_key, cache=cache)
             
-            # Then try to modify the HTTP client after creation
+            # Now modify just the HTTP client inside it
+            if hasattr(client, 'context') and hasattr(client.context, 'http_client'):
+                import httpx
+                
+                # Get configuration from environment variables
+                max_connections = int(os.environ.get("TILED_MAX_CONNECTIONS", "300"))
+                pool_timeout = float(os.environ.get("TILED_POOL_TIMEOUT", "60.0"))
+                
+                # Create a new HTTP client with better settings
+                http_client = client.context.http_client
+                
+                # Create a new transport with better limits
+                new_transport = httpx.HTTPTransport(
+                    limits=httpx.Limits(max_connections=max_connections)
+                )
+                
+                # Create a new timeout configuration
+                new_timeout = httpx.Timeout(
+                    pool=pool_timeout,
+                    connect=pool_timeout,
+                    read=pool_timeout,
+                    write=pool_timeout
+                )
+                
+                # Create a new HTTP client with our settings but preserving other aspects
+                new_http_client = httpx.Client(
+                    base_url=http_client.base_url,
+                    headers=http_client.headers,
+                    cookies=http_client.cookies,
+                    auth=http_client.auth if hasattr(http_client, 'auth') else None,
+                    follow_redirects=http_client.follow_redirects,
+                    transport=new_transport,
+                    timeout=new_timeout
+                )
+                
+                # Replace the HTTP client
+                client.context.http_client = new_http_client
+            
+            # Test if the client still works as expected
             try:
-                if hasattr(client, 'context') and hasattr(client.context, 'http_client'):
-                    # Directly modify the client's transport if possible
-                    if hasattr(client.context.http_client, '_transport'):
-                        # Create a new transport
-                        new_transport = httpx.HTTPTransport(
-                            limits=httpx.Limits(max_connections=max_connections)
-                        )
-                        # Replace it in the client
-                        client.context.http_client._transport = new_transport
-                        
-                    # Set the timeout
-                    if hasattr(client.context.http_client, 'timeout'):
-                        client.context.http_client.timeout = timeout
-            except Exception as e2:
+                # Try a simple operation
+                _ = list(client)
+            except Exception as test_error:
                 import logging
                 logging.getLogger(__name__).warning(
-                    f"Could not modify HTTP client after creation: {e2}"
+                    f"Modified client test failed: {str(test_error)}. Falling back to unmodified client."
                 )
-        
-        return client
+                # If test fails, create a new client without modifications
+                client = from_uri(tiled_uri, api_key=api_key, cache=cache)
+            
+            return client
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"Error configuring Tiled client: {str(e)}")
+            
+            # Fall back to a basic client if modifications fail
+            return from_uri(tiled_uri, api_key=api_key, cache=cache)
         
 
 
