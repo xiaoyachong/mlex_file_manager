@@ -209,7 +209,7 @@ class TiledDataset(Dataset):
             elif len(tiled_data.shape) == 3:
                 block_data = tiled_data[indexes]
             else:
-                block_data = tiled_data
+                block_data = tiled_data[:]
                 block_data = np.expand_dims(block_data, axis=0)
 
         if export == "raw":
