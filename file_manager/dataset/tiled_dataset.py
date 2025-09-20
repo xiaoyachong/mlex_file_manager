@@ -19,13 +19,35 @@ else:
     STATIC_TILED_CLIENT = None
 
 
+# def recreate_client_with_new_pool(old_client, max_connections=100, pool_timeout=10.0):
+#     new_client = httpx.Client(
+#         base_url=old_client.base_url,
+#         headers=old_client.headers,
+#         cookies=old_client.cookies,
+#         limits=httpx.Limits(max_connections=max_connections),
+#         timeout=httpx.Timeout(pool=pool_timeout,read=10.0, write=10.0, connect=10.0),
+#     )
+#     return new_client
 def recreate_client_with_new_pool(old_client, max_connections=100, pool_timeout=10.0):
+    """
+    Create a new httpx client with larger connection pool while preserving other settings
+    """
+    # Create a new client with all the same settings, just modifying the limits and timeout
     new_client = httpx.Client(
         base_url=old_client.base_url,
         headers=old_client.headers,
         cookies=old_client.cookies,
+        auth=old_client.auth,
+        follow_redirects=old_client.follow_redirects,
+        event_hooks=old_client.event_hooks,
         limits=httpx.Limits(max_connections=max_connections),
-        timeout=httpx.Timeout(pool=pool_timeout,read=10.0, write=10.0, connect=10.0),
+        timeout=httpx.Timeout(pool=pool_timeout, read=10.0, write=10.0, connect=10.0),
+        # Preserve any other settings that might be important
+        http1=old_client._http1,
+        http2=old_client._http2,
+        proxies=old_client.proxies,
+        verify=old_client.verify,
+        cert=old_client.cert,
     )
     return new_client
 class TiledDataset(Dataset):
