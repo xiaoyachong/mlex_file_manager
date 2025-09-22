@@ -37,7 +37,7 @@ if STATIC_TILED_URI:
         STATIC_TILED_CLIENT.context.cache = cache
         client_httpx = STATIC_TILED_CLIENT.context.http_client
         # Try bumping up the pool timeout until the error goes away.
-        client_httpx.timeout = httpx.Timeout(200.0, connect=5.0, pool=5.0)
+        client_httpx.timeout = httpx.Timeout(200.0, connect=5.0, pool=200.0)
         client_httpx.limits = httpx.Limits(max_connections=200, max_keepalive_connections=100)
         print(f"https timeouts {client_httpx.timeout}")
         print(f"https limits {client_httpx.limits}")
