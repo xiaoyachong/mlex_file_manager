@@ -5,6 +5,7 @@ from functools import partial
 import numpy as np
 from tiled.client import from_uri
 from tiled.client.array import ArrayClient
+from tiled.client.cache import Cache
 
 from file_manager.dataset.dataset import Dataset
 
@@ -68,7 +69,28 @@ class TiledDataset(Dataset):
         if static_tiled_client:
             return static_tiled_client
         else:
-            client = from_uri(tiled_uri, api_key=api_key)
+            # Check for environment variables for cache configuration
+            cache_path = os.environ.get("TILED_CACHE_PATH")
+            
+            if cache_path:
+                # Get capacity and max item size from environment or use defaults
+                capacity = int(os.environ.get("TILED_CACHE_CAPACITY", 500_000_000))
+                max_item_size = int(os.environ.get("TILED_CACHE_MAX_ITEM_SIZE", 500_000))
+                
+                # Create custom cache
+                cache = Cache(
+                    capacity=capacity,
+                    max_item_size=max_item_size,
+                    filepath=cache_path,
+                    readonly=False,
+                )
+                
+                # Create client with custom cache
+                client = from_uri(tiled_uri, api_key=api_key)
+                client.context.cache = cache
+            else:
+                # Create client with default cache
+                client = from_uri(tiled_uri, api_key=api_key)
             return client
 
     def read_data(
