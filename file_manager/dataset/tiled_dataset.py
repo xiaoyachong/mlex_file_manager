@@ -91,8 +91,8 @@ class TiledDataset(Dataset):
                 client.context.cache = cache
                 client_httpx = client.context.http_client
                 # Try bumping up the pool timeout until the error goes away.
-                client_httpx.timeout = httpx.Timeout(50.0, connect=5.0, pool=5.0)
-                client_httpx.limits = httpx.Limits(max_connections=100, max_keepalive_connections=20)
+                client_httpx.timeout = httpx.Timeout(200.0, connect=5.0, pool=5.0)
+                client_httpx.limits = httpx.Limits(max_connections=200, max_keepalive_connections=100)
 
             else:
                 # Create client with default cache
