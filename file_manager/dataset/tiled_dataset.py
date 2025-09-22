@@ -2,6 +2,7 @@ import concurrent.futures
 import os
 from functools import partial
 
+import httpx
 import numpy as np
 from tiled.client import from_uri
 from tiled.client.array import ArrayClient
@@ -88,6 +89,11 @@ class TiledDataset(Dataset):
                 # Create client with custom cache
                 client = from_uri(tiled_uri, api_key=api_key)
                 client.context.cache = cache
+                client_httpx = client.context.http_client
+                # Try bumping up the pool timeout until the error goes away.
+                client_httpx.timeout = httpx.Timeout(10.0, connect=5.0, pool=5.0)
+                client_httpx.limits = httpx.Limits(max_connections=50, max_keepalive_connections=20)
+
             else:
                 # Create client with default cache
                 client = from_uri(tiled_uri, api_key=api_key)
