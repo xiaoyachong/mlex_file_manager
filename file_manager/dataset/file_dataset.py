@@ -134,7 +134,7 @@ class FileDataset(Dataset):
 
         thread_indexes = []
         # Use ThreadPoolExecutor to read files in parallel
-        with ThreadPoolExecutor() as executor:
+        with ThreadPoolExecutor(max_workers=1) as executor:
             future_to_index = {
                 executor.submit(
                     self._read_data_point,
