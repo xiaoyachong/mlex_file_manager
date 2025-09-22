@@ -13,6 +13,7 @@ from file_manager.dataset.dataset import Dataset
 # Check if a static tiled client has been set
 STATIC_TILED_URI = os.getenv("STATIC_TILED_URI", None)
 STATIC_TILED_API_KEY = os.getenv("STATIC_TILED_API_KEY", None)
+print("in tiled_dataset")
 if STATIC_TILED_URI:
     STATIC_TILED_CLIENT = from_uri(STATIC_TILED_URI, api_key=STATIC_TILED_API_KEY)
 
@@ -38,7 +39,8 @@ if STATIC_TILED_URI:
         # Try bumping up the pool timeout until the error goes away.
         client_httpx.timeout = httpx.Timeout(200.0, connect=5.0, pool=5.0)
         client_httpx.limits = httpx.Limits(max_connections=200, max_keepalive_connections=100)
-
+        print(f"https timeouts {client_httpx.timeout}")
+        print(f"https limits {client_httpx.limits}")
 else:
     STATIC_TILED_CLIENT = None
 
