@@ -15,6 +15,30 @@ STATIC_TILED_URI = os.getenv("STATIC_TILED_URI", None)
 STATIC_TILED_API_KEY = os.getenv("STATIC_TILED_API_KEY", None)
 if STATIC_TILED_URI:
     STATIC_TILED_CLIENT = from_uri(STATIC_TILED_URI, api_key=STATIC_TILED_API_KEY)
+
+    cache_path = os.environ.get("TILED_CACHE_PATH")
+    
+    if cache_path:
+        # Get capacity and max item size from environment or use defaults
+        capacity = int(os.environ.get("TILED_CACHE_CAPACITY", 500_000_000))
+        max_item_size = int(os.environ.get("TILED_CACHE_MAX_ITEM_SIZE", 500_000))
+        
+        # Create custom cache
+        cache = Cache(
+            capacity=capacity,
+            max_item_size=max_item_size,
+            filepath=cache_path,
+            readonly=False,
+        )
+        
+        # Create client with custom cache
+    
+        STATIC_TILED_CLIENT.context.cache = cache
+        client_httpx = STATIC_TILED_CLIENT.context.http_client
+        # Try bumping up the pool timeout until the error goes away.
+        client_httpx.timeout = httpx.Timeout(200.0, connect=5.0, pool=5.0)
+        client_httpx.limits = httpx.Limits(max_connections=200, max_keepalive_connections=100)
+
 else:
     STATIC_TILED_CLIENT = None
 
@@ -70,33 +94,7 @@ class TiledDataset(Dataset):
         if static_tiled_client:
             return static_tiled_client
         else:
-            # Check for environment variables for cache configuration
-            cache_path = os.environ.get("TILED_CACHE_PATH")
-            
-            if cache_path:
-                # Get capacity and max item size from environment or use defaults
-                capacity = int(os.environ.get("TILED_CACHE_CAPACITY", 500_000_000))
-                max_item_size = int(os.environ.get("TILED_CACHE_MAX_ITEM_SIZE", 500_000))
-                
-                # Create custom cache
-                cache = Cache(
-                    capacity=capacity,
-                    max_item_size=max_item_size,
-                    filepath=cache_path,
-                    readonly=False,
-                )
-                
-                # Create client with custom cache
-                client = from_uri(tiled_uri, api_key=api_key)
-                client.context.cache = cache
-                client_httpx = client.context.http_client
-                # Try bumping up the pool timeout until the error goes away.
-                client_httpx.timeout = httpx.Timeout(200.0, connect=5.0, pool=5.0)
-                client_httpx.limits = httpx.Limits(max_connections=200, max_keepalive_connections=100)
-
-            else:
-                # Create client with default cache
-                client = from_uri(tiled_uri, api_key=api_key)
+            client = from_uri(tiled_uri, api_key=api_key)
             return client
 
     def read_data(
